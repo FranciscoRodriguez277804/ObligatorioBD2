@@ -194,10 +194,11 @@ WHERE h.habitacionNombre = r.habitacionNombre
 GROUP BY h.habitacionNombre 
 
 
---a. Escribir un procedimiento almacenado para reservar una habitación.
+--4aEscribir un procedimiento almacenado para reservar una habitación.
 --Se debe actualizar el estado de DISPONIBLE a LLENA si se alcanzó la capacidad de la
 --habitación con la reserva en cuestión
---No permitir realizar la reserva si el estado de la habitación es LLENA o LIMPIANDO. 
+--No permitir realizar la reserva si el estado de la habitación es LLENA o LIMPIANDO.
+--Se debe retornar el número de reserva asignado (cero sino se logró reservar)
 
 CREATE OR ALTER PROCEDURE SP_EJ1 
 @gatoID int , @nombreHab char(30) , @inicio date , @fin date , @monto decimal(7,2)
@@ -228,3 +229,30 @@ INSERT INTO Reserva (gatoID, habitacionNombre, reservaFechaInicio, reservaFechaF
 
 
 END
+
+--4b. Mediante una función que reciba un nombre de servicio, devolver un booleano indicando si
+--este año el servicio fue contratado más veces que el año pasado
+
+CREATE OR ALTER FUNCTION EJE4B (@nombreDeServicio CHAR(30)) 
+
+DECLARE @return bit 
+
+--/Pregunto si existe el nombre del servicio 
+IF EXISTS (SELECT 1 FROM Reserva_Servicio rs WHERE rs.servicioNombre = @nombreDeServicio
+BEGIN 
+
+	
+END 
+ELSE
+BEGIN 
+PRINT('El nombre del servicio no existe')
+END 
+
+
+
+
+
+
+
+RETURNS BIT
+
