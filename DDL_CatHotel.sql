@@ -248,20 +248,20 @@ SELECT dbo.FN_EJE4B ('Masajes')
 -- desde el que se realizó la modificación.
 
 CREATE TABLE ReservaLog (
-	logID INT IDENTITY(1,1) PRIMARY KEY,
-
-	reservaID INT,
-	gatoID INT, 
-	habitacionNombre char(30),
-	reservaFechaInicio date,
-	reservaFechaFin date,
-	reservaMonto decimal(7,2),
-
-	fechaRegistro DATETIME DEFAULT GETDATE(),
-	tipoOperacion VARCHAR(20) ,
-	usuarioOperacion VARCHAR(50) DEFAULT SYSTEM_USER,
-	
-
+    logID INT IDENTITY(1,1) PRIMARY KEY,
+    reservaID INT,
+    gatoID INT, 
+    habitacionNombre CHAR(30),
+    reservaFechaInicio DATE,
+    reservaFechaFin DATE,
+    reservaMonto DECIMAL(7,2),
+    montoAnterior DECIMAL(7,2),
+    fechaRegistro DATETIME DEFAULT GETDATE(),
+    tipoOperacion VARCHAR(20),
+    usuarioOperacion VARCHAR(50) DEFAULT SYSTEM_USER,
+    nombreEquipo VARCHAR(50) DEFAULT HOST_NAME(),
+    CONSTRAINT FK_ReservaLog_Reserva FOREIGN KEY (reservaID) 
+    REFERENCES Reserva(reservaID)
 
 );
 
@@ -270,9 +270,25 @@ ON Reserva
 AFTER INSERT , UPDATE 
 AS
 BEGIN 
-
-INSERT INTO ReservaLog 
-					   SELECT
-					   FROM inserted 
+	
+	-- Insertar nueva reserva
+	IF EXISTS (SELECT * FROM inserted) AND NOT EXISTS (SELECT * FROM deleted)
+	BEGIN
+		INSERT INTO ReservaLog SELECT i.reservaID, i.gatoID, i.habitacionNombre,
+									  i.reservaFechaInicio, i.reservaFechaFin,
+									  i.reservaMonto, NULL , GETDATE() ,'INSERT RESERVA',
+									  SYSTEM_USER , HOST_NAME()
+							   FROM inserted i
+	END
+	-- Actualizar monto
+	IF UPDATE(reservaMonto)
+	BEGIN 
+		INSERT INTO ReservaLog SELECT  i.reservaID, i.gatoID, i.habitacionNombre,
+									   i.reservaFechaInicio, i.reservaFechaFin,
+                                       i.reservaMonto, d.reservaMonto, GETDATE(),
+									   'UPDATE MONTO', SYSTEM_USER , HOST_NAME()
+							   FROM inserted i , deleted d
+							   WHERE i.reservaMonto <> d.reservaMonto
+	END
 
 END
