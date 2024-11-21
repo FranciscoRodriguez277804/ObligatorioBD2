@@ -55,57 +55,12 @@ CREATE TABLE Reserva_Servicio (
     CONSTRAINT FK_ReservaServicio_Servicio FOREIGN KEY (servicioNombre) REFERENCES Servicio(servicioNombre) );
 GO
 
---Creación de índices que considere puedan ser útiles para optimizar las consultas (según criterio
---establecido en el curso).
+-- Creación de índices que considere puedan ser útiles para optimizar las consultas (según criterio
+-- establecido en el curso).
 
 
 
 
---Ingreso de un juego completo de datos de prueba (será más valorada la calidad de los datos que la
---cantidad).
-
-INSERT INTO Propietario VALUES (44666254,'Sofia Moran',094485887,'soomoran20@gmail.com'),
-							   (45896425,'Lorena Nuñez',09922222,'lore@gmail.com'),
-							   (46621433,'Alexis Falcon',09654896,'alexei@gmail.com'),
-							   (48687123,'Freddy Mercury',09478965,'lavozdelsiglo20@gmail.com'),
-							   (42488794,'Lucas Viera',09958632,'lv@gmail.com'),
-							   (65895478,'Flor Jazmin Peña',222660019,'florjazmin@gmail.com')
-
-INSERT INTO Gato VALUES ('Diegote','Bombay',5,8,46621433),
-						('Meme','Bengali',3,5,44666254),
-						('Budin','Mestizo',4,8,65895478),
-						('Lulita','Siames',4,5,42488794),
-						('Macri','Siames',6,4,42488794)
-
-
-INSERT INTO Habitacion VALUES ('Palacio de pelusa',4,150,'DISPONIBLE'),
-							  ('Mirador de Ratones',1,1000,'LLENA'),
-							  ('Noche de Fantasia',2,250,'DISPONIBLE'),
-							  ('Refugio de plumas',10,90,'DISPONIBLE'),
-							  ('Dormitorio gaturro',4,50,'LIMPIANDO'),
-							  ('Retiro Secreto',2,120,'LLENA')
-
-INSERT INTO Reserva VALUES (3,'Palacio de pelusa','2024-09-14','2024-09-22',150),
-						   (1,'Refugio de plumas','2024-05-03','2024-05-05',180),
-						   (4,'Noche de Fantasia','2024-05-03','2024-05-05',100),
-						   (4,'Noche de Fantasia','2024-10-03','2024-10-06',750),
-						   (5,'Mirador de Ratones','2024-09-01','2024-09-09',9000)
-
-
-INSERT INTO Servicio VALUES ('Atencion Veterinaria',50),
-							('Servicio de Spa y Belleza',120),
-							('Gym',130),
-							('Transporte',150)
-
-INSERT INTO Reserva_Servicio VALUES (5,'Atencion Veterinaria',1),
-									(5,'Servicio de Spa y Belleza',1),
-									(5,'Gym',1),
-									(5,'Transporte',1),
-									(2,'Servicio de Spa y Belleza',1),
-									(3,'Gym',1),
-									(3,'Servicio de Spa y Belleza',1),
-									(1,'Servicio de Spa y Belleza',1),
-									(1,'Atencion Veterinaria',1)
 
 
 --a Mostrar el nombre del gato, el nombre del propietario, la habitación y el monto de la reserva
@@ -194,65 +149,130 @@ WHERE h.habitacionNombre = r.habitacionNombre
 GROUP BY h.habitacionNombre 
 
 
---4aEscribir un procedimiento almacenado para reservar una habitación.
---Se debe actualizar el estado de DISPONIBLE a LLENA si se alcanzó la capacidad de la
---habitación con la reserva en cuestión
---No permitir realizar la reserva si el estado de la habitación es LLENA o LIMPIANDO.
---Se debe retornar el número de reserva asignado (cero sino se logró reservar)
+-- 4a Escribir un procedimiento almacenado para reservar una habitación.
+-- Se debe actualizar el estado de DISPONIBLE a LLENA si se alcanzó la capacidad de la
+-- habitación con la reserva en cuestión
+-- No permitir realizar la reserva si el estado de la habitación es LLENA o LIMPIANDO.
+-- Se debe retornar el número de reserva asignado (cero sino se logró reservar)
 
 CREATE OR ALTER PROCEDURE SP_EJ1 
-@gatoID int , @nombreHab char(30) , @inicio date , @fin date , @monto decimal(7,2)
+    @gatoID int,
+    @habitacion char(30),
+    @reservaInicio date,
+    @reservaFin date, 
+    @reservaMonto decimal(7,2),
+    @numeroDeReserva int OUTPUT
 AS
-BEGIN 
-
-DECLARE @capacidadHabitacion int , @estado varchar(20) , @huespedes int 
-
-SELECT @capacidadHabitacion = h.habitacionCapacidad , @estado = h.habitacionEstado , @huespedes  = COUNT(r.gatoID)
-FROM Habitacion h ,Reserva r
-WHERE h.habitacionNombre = @nombreHab and r.habitacionNombre = h.habitacionNombre
-
-IF @estado = 'LLENA' OR  @estado = 'LIMPIANDO'
+BEGIN
+    SET @numeroDeReserva = 0;
+    
+    -- Verifico si la habitacion esta disponible
+    IF EXISTS (SELECT 1
+               FROM Habitacion 
+               WHERE habitacionNombre = @habitacion 
+               AND habitacionEstado = 'DISPONIBLE')
     BEGIN
-        PRINT ('No se puede realizar la reserva, la habitación está llena o en limpieza.');
+        -- Inserto reserva
+        INSERT INTO Reserva (gatoID, habitacionNombre, reservaFechaInicio, reservaFechaFin, reservaMonto)
+        VALUES (@gatoID, @habitacion, @reservaInicio, @reservaFin, @reservaMonto);
+        
+        -- Obtengo el ultimo id asignado
+        SET @numeroDeReserva = SCOPE_IDENTITY();
+        
+        -- Cuento las reservas actuales de la habitacion
+        IF (SELECT COUNT(*)
+            FROM Reserva
+            WHERE habitacionNombre = @habitacion
+            AND reservaFechaFin >= @reservaInicio
+            AND reservaFechaInicio <= @reservaFin) >= (SELECT habitacionCapacidad 
+                                                       FROM Habitacion 
+													   WHERE habitacionNombre = @habitacion)
+        BEGIN
+            -- Actualizar estado a LLENA si se alcanzó la capacidad
+            UPDATE Habitacion
+            SET habitacionEstado = 'LLENA'
+            WHERE habitacionNombre = @habitacion;
+        END
+    END
+END
+
+DECLARE @reservaID int
+EXEC SP_EJ1 1, 'Suite Deluxe', '2024-03-20', '2024-03-23', 300.00, @reservaID OUTPUT
+SELECT @reservaID as NumeroReservaAsignado
+
+-- 4b. Mediante una función que reciba un nombre de servicio, devolver un booleano indicando si
+-- ste año el servicio fue contratado más veces que el año pasado
+
+CREATE OR ALTER FUNCTION FN_EJE4B(@nombreDeServicio CHAR(30))
+RETURNS BIT
+AS
+BEGIN
+    DECLARE @return BIT = 0
+
+    -- Verificar si existe el servicio
+    IF EXISTS (SELECT 1 FROM Servicio WHERE servicioNombre = @nombreDeServicio)
+    BEGIN
+        DECLARE @cantidadEsteAnio INT
+        DECLARE @cantidadAnioAnterior INT
+
+        -- Cuento cantidad de servicios de este año
+        SELECT @cantidadEsteAnio = COUNT(*)
+        FROM Reserva r 
+        JOIN Reserva_Servicio rs ON r.reservaID = rs.reservaID
+        WHERE rs.servicioNombre = @nombreDeServicio 
+        AND YEAR(r.reservaFechaInicio) = YEAR(GETDATE())
+
+        -- Cuento la cantidad de servicios de el año pasado 
+        SELECT @cantidadAnioAnterior = COUNT(*)
+        FROM Reserva r 
+        JOIN Reserva_Servicio rs ON r.reservaID = rs.reservaID
+        WHERE rs.servicioNombre = @nombreDeServicio 
+        AND YEAR(r.reservaFechaInicio) = YEAR(GETDATE()) - 1
+
+        
+        SET @return = CASE WHEN @cantidadEsteAnio > @cantidadAnioAnterior THEN 1 ELSE 0 END
+
     END
 
-
- IF @capacidadHabitacion  >= @huespedes 
- BEGIN 
-	UPDATE Habitacion 
-	SET habitacionEstado = 'LLENA'
-	WHERE habitacionNombre = @nombreHab
- END 
-
-INSERT INTO Reserva (gatoID, habitacionNombre, reservaFechaInicio, reservaFechaFin, reservaMonto)
-    VALUES (@gatoID, @nombreHab, @inicio, @fin, @monto);
-
+		RETURN @return
 
 END
 
---4b. Mediante una función que reciba un nombre de servicio, devolver un booleano indicando si
---este año el servicio fue contratado más veces que el año pasado
+SELECT dbo.FN_EJE4B ('Masajes') 
 
-CREATE OR ALTER FUNCTION EJE4B (@nombreDeServicio CHAR(30)) 
+-- 5a. Cada vez que se crea una nueva reserva se debe crear un registro de auditoria con todos
+-- los datos ingresados en una tabla ReservaLog (definir su estructura libremente). 
+-- Y adicionalmente cada vez que se modifica el campo monto de una reserva: debe registrar
+-- monto previo y nuevo monto en la tabla ReservaLog.
+-- En todos los casos se debe grabar fecha-hora de registro, usuario(login), nombre de equipo
+-- desde el que se realizó la modificación.
 
-DECLARE @return bit 
+CREATE TABLE ReservaLog (
+	logID INT IDENTITY(1,1) PRIMARY KEY,
 
---/Pregunto si existe el nombre del servicio 
-IF EXISTS (SELECT 1 FROM Reserva_Servicio rs WHERE rs.servicioNombre = @nombreDeServicio
-BEGIN 
+	reservaID INT,
+	gatoID INT, 
+	habitacionNombre char(30),
+	reservaFechaInicio date,
+	reservaFechaFin date,
+	reservaMonto decimal(7,2),
 
+	fechaRegistro DATETIME DEFAULT GETDATE(),
+	tipoOperacion VARCHAR(20) ,
+	usuarioOperacion VARCHAR(50) DEFAULT SYSTEM_USER,
 	
-END 
-ELSE
+
+
+);
+
+CREATE OR ALTER TRIGGER TRG_EJE5A 
+ON Reserva 
+AFTER INSERT , UPDATE 
+AS
 BEGIN 
-PRINT('El nombre del servicio no existe')
-END 
 
+INSERT INTO ReservaLog 
+					   SELECT
+					   FROM inserted 
 
-
-
-
-
-
-RETURNS BIT
-
+END
