@@ -79,3 +79,4 @@ UNION ALL
 SELECT 'Reservas', COUNT(*) FROM Reserva
 UNION ALL
 SELECT 'Reserva_Servicios', COUNT(*) FROM Reserva_Servicio;
+

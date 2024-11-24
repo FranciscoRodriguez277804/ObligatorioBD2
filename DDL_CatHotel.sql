@@ -292,3 +292,48 @@ BEGIN
 	END
 
 END
+
+-- 5b. Antes de insertar una nueva reserva, se debe controlar posibles solapamientos de reservas
+-- (un gato no podría estar alojado simultáneamente 2 veces en el hotel).
+-- Se debe dar de alta las reservas válidas y simplemente ignorar las reservas solapadas 
+
+
+CREATE OR ALTER TRIGGER TRG_EJE5B 
+ON Reserva
+INSTEAD OF INSERT 
+AS 
+BEGIN 
+INSERT INTO Reserva
+    SELECT i.*
+    FROM inserted i
+    WHERE NOT EXISTS (
+        SELECT r.reservaID
+        FROM Reserva r
+        WHERE r.gatoID = i.gatoID
+		AND i.reservaFechaInicio <= r.reservaFechaFin 
+        AND i.reservaFechaFin >= r.reservaFechaInicio
+		)
+END
+
+-- 6. Crear una vista que liste el monto total a facturar por propietario por las reservas y servicios del
+-- mes pasado. Se debe listar el nombre del propietario, el monto total de sus reservas, el monto total
+-- de servicios adicionales que contrató y la suma de ambos montos (monto a facturar) 
+
+CREATE OR ALTER VIEW V_EJ6
+AS 
+
+SELECT p.propietarioNombre ,
+SUM(r.reservaMonto) as MontoTotalReservas ,
+SUM(rs.cantidad * s.servicioPrecio) MontoTotalServicios ,
+SUM(r.reservaMonto) + SUM(rs.cantidad * s.servicioPrecio) as MontoTotalaFacturar
+FROM Propietario p , gato g , Reserva r , Reserva_Servicio rs , Servicio s
+WHERE p.propietarioDocumento = g.propietarioDocumento and g.gatoID = r.gatoID and r.reservaID =
+rs.reservaID and rs.servicioNombre = s.servicioNombre and
+YEAR(r.reservaFechaInicio) = YEAR(GETDATE()) and MONTH(r.reservaFechaInicio) = (DATEADD(MONTH, -1, GETDATE()))
+GROUP BY p.propietarioNombre 
+
+
+ 
+
+
+
