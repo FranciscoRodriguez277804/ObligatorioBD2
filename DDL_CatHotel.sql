@@ -58,9 +58,15 @@ GO
 -- Creación de índices que considere puedan ser útiles para optimizar las consultas (según criterio
 -- establecido en el curso).
 
+CREATE INDEX IDX_Gato_Propietario ON Gato(propietarioDocumento);
 
+CREATE INDEX IDX_Reserva_Gato ON Reserva(gatoID);
 
+CREATE INDEX IDX_Reserva_Habitacion ON Reserva(habitacionNombre);
 
+CREATE INDEX IDX_ReservaServicio_Servicio ON Reserva_Servicio(servicioNombre);
+
+CREATE INDEX IDX_ReservaServicio_Reserva ON Reserva_Servicio(reservaID);
 
 
 --a Mostrar el nombre del gato, el nombre del propietario, la habitación y el monto de la reserva
@@ -103,15 +109,15 @@ HAVING COUNT(DISTINCT rs.servicioNombre) = (SELECT COUNT(s.servicioNombre)
 
 SELECT YEAR(r.reservaFechaInicio) as año , g.gatoNombre , SUM(r.reservaMonto) as montoTotal
 FROM Reserva r , gato g 
-WHERE r.gatoID = r.gatoID and g.gatoEdad > 10 and g.gatoRaza = 'Persa'
-GROUP BY YEAR(r.reservaFechaInicio) , g.gatoNombre , r.reservaMonto 
+WHERE r.gatoID = g.gatoID and g.gatoEdad > 1 and g.gatoRaza = 'Persa'
+GROUP BY YEAR(r.reservaFechaInicio) , g.gatoNombre 
 HAVING SUM(r.reservaMonto) >= 500
 
   
 --e. Mostrar el ranking de reservas más caras, tomando como monto total de una reserva el monto
 --propio de la reserva más los servicios adicionales contratados en la reserva
 
-SELECT r.reservaID , r.gatoID , r.habitacionNombre , r.reservaFechaFin , r.reservaFechaFin ,
+SELECT r.reservaID , r.gatoID , r.habitacionNombre , r.reservaFechaInicio , r.reservaFechaFin ,
 r.reservaMonto + (
 SELECT SUM(rs.cantidad * s.servicioPrecio)
 FROM Reserva_Servicio rs , Servicio s
@@ -124,12 +130,13 @@ ORDER BY montoTotal DESC;
 --Deben ser consideradas solo aquellas reservas en las que se contrató el servicio
 --"CONTROL_PARASITOS" pero no se contrató el servicio "REVISION_VETERINARIA"
 
-SELECT AVG(DATEDIFF(DAY, r.reservaFechaFin , r.reservaFechaFin)) as diferenciaDias
+SELECT AVG(DATEDIFF(DAY, r.reservaFechaInicio , r.reservaFechaFin)) as diferenciaDias
 FROM Reserva r , Reserva_Servicio rs 
-WHERE YEAR(r.reservaFechaInicio)  = YEAR(GETDATE()) and rs.servicioNombre = 'CONTROL_PARASITOS' 
-and rs.servicioNombre not in (SELECT rs2.servicioNombre
+WHERE r.reservaID = rs.reservaID and YEAR(r.reservaFechaInicio)  = YEAR(GETDATE()) and rs.servicioNombre = 'CONTROL_PARASITOS' 
+and rs.reservaID not in (SELECT rs2.reservaID
 							  FROM Reserva_Servicio rs2
 							  WHERE rs2.servicioNombre = 'REVISION_VETERINARIA')
+
 
 --g. Para cada habitación, listar su nombre, la cantidad de días que ha estado ocupada y la
 --cantidad de días transcurridos desde la fecha de inicio de la primera reserva en el hotel.
@@ -138,15 +145,19 @@ and rs.servicioNombre not in (SELECT rs2.servicioNombre
 --si estuvo ocupada entre el 40% y el 60%, y "NOESNEGOCIO" si estuvo ocupada menos del
 --40%.
 
-SELECT h.habitacionNombre , SUM(DATEDIFF(DAY,r.reservaFechaInicio , r.reservaFechaFin)) cantidadDiasOcupada ,
-CASE 
-	WHEN AVG(DATEDIFF(Day , r.reservaFechaInicio , r.reservaFechaFin)) > 60 THEN 'REDITUABLE'
-	WHEN AVG(DATEDIFF(Day , r.reservaFechaInicio , r.reservaFechaFin)) BETWEEN 40 and 60 THEN 'MAGRO'
-	WHEN AVG(DATEDIFF(Day , r.reservaFechaInicio , r.reservaFechaFin)) < 40 THEN 'NO ES NEGOCIO' 
-	END rentabilidad
-FROM Habitacion h , Reserva r 
-WHERE h.habitacionNombre = r.habitacionNombre
-GROUP BY h.habitacionNombre 
+
+SELECT h.habitacionNombre , SUM(DATEDIFF(day,r.reservaFechaInicio,r.reservaFechaFin)) as cantidadDeDiasOcupada ,
+DATEDIFF(day,MIN(r.reservaFechaInicio), GETDATE()) as diasDesdeInicio,
+  CASE 
+        WHEN (SUM(DATEDIFF(DAY, r.reservaFechaInicio, r.reservaFechaFin)) * 100.0 / 
+              DATEDIFF(DAY, MIN(r.reservaFechaInicio), GETDATE())) > 60 THEN 'REDITUABLE'
+        WHEN (SUM(DATEDIFF(DAY, r.reservaFechaInicio, r.reservaFechaFin)) * 100.0 / 
+              DATEDIFF(DAY, MIN(r.reservaFechaInicio), GETDATE())) BETWEEN 40 AND 60 THEN 'MAGRO'
+        ELSE 'NOESNEGOCIO'
+    END as rentabilidad
+FROM Habitacion h , Reserva r
+WHERE r.habitacionNombre = h.habitacionNombre 
+GROUP BY h.habitacionNombre
 
 
 -- 4a Escribir un procedimiento almacenado para reservar una habitación.
